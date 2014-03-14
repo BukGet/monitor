@@ -1,18 +1,12 @@
 var restify = require('restify');
 var unirest = require('unirest');
-var stats = { 'message' : 'Checks pending.' };
+var stats = { 'message' : 'pending' };
 
 var Status = {
   servers: [
     "dallas.api.bukget.org", 
     "paris.api.bukget.org"
   ],
-
-  messages: {
-    warning: 'Systems are experiencing slight turbulance.',
-    down: 'Majority of the system is down.',
-    ok: 'All systems are GO.',
-  },
 
   codes: {
     "pl": "Listing",
@@ -109,7 +103,7 @@ Status.check = function () {
 		                status = "warning";
 		              }
 
-		              stats.message = Status.messages[status];
+		              stats.message = status;
 		            }
 
 		            return;
