@@ -137,6 +137,10 @@ setInterval(function() {
 	Status.check();
 }, 1000 * 60);
 
+setInterval(function() {
+	unirest.get('http://bukget-monitor.herokuapp.com').end(function (response) {});
+}, 1000 * 60 * 20);
+
 
 var app = restify.createServer();
 
