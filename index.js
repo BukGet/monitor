@@ -1,6 +1,6 @@
 var restify = require('restify');
 var unirest = require('unirest');
-var stats = { 'message' : 'pending' };
+var stats = { 'status' : 'pending', 'servers' : {} };
 
 var Status = {
   servers: [
@@ -77,7 +77,7 @@ Status.check = function () {
 		          return Status.call(server, path, function (status, error) {
 		            called++;
 		            errors += (error == 'ETIMEDOUT' || !status ? 1 : 0);
-		            stats[server][version][section] = (error == 'ETIMEDOUT' ? 'warning' : (status ? 'ok' : 'down'));
+		            stats['servers'][server][version][section] = (error == 'ETIMEDOUT' ? 'warning' : (status ? 'ok' : 'down'));
 		            if (called === length && version === 'v3') {
 		              var status = "ok";
 
@@ -87,7 +87,7 @@ Status.check = function () {
 		                status = "warning";
 		              }
 
-		              stats.message = status;
+		              stats.status = status;
 		            }
 
 		            return;
@@ -103,9 +103,9 @@ Status.check = function () {
 };
 
 for (var server in Status.servers) {
-	stats[Status.servers[server]] = {};
+	stats['servers'][Status.servers[server]] = {};
 	for (var version in Status.versions) {
-		stats[Status.servers[server]][version] = {};
+		stats['servers'][Status.servers[server]][version] = {};
 	}
 }
 
