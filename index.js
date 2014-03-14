@@ -106,6 +106,9 @@ for (var server in Status.servers) {
 	stats['servers'][Status.servers[server]] = {};
 	for (var version in Status.versions) {
 		stats['servers'][Status.servers[server]][version] = {};
+		for (var section in Status.versions[version]) {
+			stats['servers'][Status.servers[server]][version][section] = "pending";
+		}
 	}
 }
 
