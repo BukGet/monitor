@@ -8,21 +8,6 @@ var Status = {
     "paris.api.bukget.org"
   ],
 
-  codes: {
-    "pl": "Listing",
-    "plb": "Listing (Bukkit)",
-    "pd": "Detail (Full)",
-    "pdl": "Detail (Latest Only)",
-    "pdr": "Detail (Latest Release)",
-    "pdb": "Detail (Latest Beta)",
-    "pda": "Detail (Latest Alpha)",
-    "cl": "Category List",
-    "cpl": "Category Plugin List",
-    "al": "Author List",
-    "apl": "Author Plugin List",
-    "se": "Search"
-  },
-
   versions: {
     "v3": {
       "pl": "/3/plugins",
@@ -87,7 +72,6 @@ Status.check = function () {
 
 		      for (var section in sections) {
 		        (function request (section) {
-		          var code = Status.codes[section];
 		          var path = sections[section];
 
 		          return Status.call(server, path, function (status, error) {
