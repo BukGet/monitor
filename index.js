@@ -21,7 +21,8 @@ var Status = {
       "cpl": "/3/categories/Admin Tools",
       "al": "/3/authors",
       "apl": "/3/authors/NuclearW",
-      "se": "/3/search/versions.type/=/Alpha?sort=-popularity.daily"
+      "upd": "/3/updates?slug=dynmap",
+      "se": "/3/search/versions.type/=/Alpha?sort=-popularity.daily",
     }
   }
 };
