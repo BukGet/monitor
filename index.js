@@ -22,28 +22,6 @@ var Status = {
       "al": "/3/authors",
       "apl": "/3/authors/NuclearW",
       "se": "/3/search/versions.type/=/Alpha?sort=-popularity.daily"
-    },
-
-    "v2": {
-      "plb": "/2/bukkit/plugins",
-      "pd": "/2/bukkit/plugin/pvp-arena",
-      "pdl": "/2/bukkit/plugin/pvp-arena/latest",
-      "cl": "/2/categories",
-      "cpl": "/2/bukkit/category/Admin Tools",
-      "al": "/2/authors",
-      "apl": "/2/bukkit/author/NuclearW",
-      "se": "/2/search/version/type/=/Alpha?sort=-popularity.daily"
-    },
-
-    "v1": {
-      "pl": "/1/plugins",
-      "pd": "/1/plugin/pvp-arena",
-      "pdl": "/1/plugin/pvp-arena/latest",
-      "cl": "/1/categories",
-      "cpl": "/1/categories/Admin Tools",
-      "al": "/1/authors",
-      "apl": "/1/author/NuclearW",
-      "se": "/1/search/slug/like/pvp-arena"
     }
   }
 };
