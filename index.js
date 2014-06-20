@@ -4,7 +4,7 @@ var stats = { 'status' : 'pending', 'servers' : {} };
 
 var Status = {
   servers: [
-    "dallas.api.bukget.org", 
+    "chicago.api.bukget.org", 
     "paris.api.bukget.org"
   ],
 
