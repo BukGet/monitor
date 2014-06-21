@@ -15,6 +15,7 @@
   "author": "David Marby <david@dmarby.se> http://dmarby.se",
   "dependencies": {
     "restify": "~2.6.1",
-    "unirest": "^0.1.8"
+    "unirest": "^0.1.8",
+    "postmark": "^0.2.5"
   }
 }

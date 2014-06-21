@@ -1,34 +1,35 @@
 var restify = require('restify');
 var unirest = require('unirest');
 var stats = { 'status' : 'pending', 'servers' : {} };
+var postmark = require('postmark')(process.env.POSTMARK_API_KEY)
 
 var Status = {
   servers: [
-    "chicago.api.bukget.org", 
-    "paris.api.bukget.org"
+    'chicago.api.bukget.org', 
+    'paris.api.bukget.org'
   ],
 
   versions: {
-    "v3": {
-      "pl": "/3/plugins",
-      "plb": "/3/plugins/bukkit",
-      "pd": "/3/plugins/bukkit/pvp-arena",
-      "pdl": "/3/plugins/bukkit/pvp-arena/latest",
-      "pdr": "/3/plugins/bukkit/pvp-arena/release",
-      "pdb": "/3/plugins/bukkit/pvp-arena/beta",
-      "pda": "/3/plugins/bukkit/pvp-arena/alpha",
-      "cl": "/3/categories",
-      "cpl": "/3/categories/Admin Tools",
-      "al": "/3/authors",
-      "apl": "/3/authors/NuclearW",
-      "upd": "/3/updates?slug=dynmap",
-      "se": "/3/search/versions.type/=/Alpha?sort=-popularity.daily",
+    'v3': {
+      'pl': '/3/plugins',
+      'plb': '/3/plugins/bukkit',
+      'pd': '/3/plugins/bukkit/pvp-arena',
+      'pdl': '/3/plugins/bukkit/pvp-arena/latest',
+      'pdr': '/3/plugins/bukkit/pvp-arena/release',
+      'pdb': '/3/plugins/bukkit/pvp-arena/beta',
+      'pda': '/3/plugins/bukkit/pvp-arena/alpha',
+      'cl': '/3/categories',
+      'cpl': '/3/categories/Admin Tools',
+      'al': '/3/authors',
+      'apl': '/3/authors/NuclearW',
+      'upd': '/3/updates?slug=dynmap',
+      'se': '/3/search/versions.type/=/Alpha?sort=-popularity.daily',
     }
   }
 };
 
 Status.call = function (server, uri, callback) {
-  var url = "http://" + server + uri;
+  var url = 'http://' + server + uri;
 
 	unirest.get(url).headers({ 'User-Agent': 'BukGet-Monitor' }).timeout(20000).end(function (response) {
 		if (response.error) {
@@ -58,12 +59,20 @@ Status.check = function () {
 		            errors += (error == 'ETIMEDOUT' || !status ? 1 : 0);
 		            stats['servers'][server][version][section] = (error == 'ETIMEDOUT' ? 'warning' : (status ? 'ok' : 'down'));
 		            if (called === length && version === 'v3') {
-		              var status = "ok";
+		              var status = 'ok';
 
 		              if (errors > 3) {
-		                status = "down";
+		                status = 'down';
 		              } else if (errors) {
-		                status = "warning";
+		                status = 'warning';
+		              }
+
+		              if (stats.status != 'down' && status == 'down') {
+			              stats.status = status;
+			              Status.sendEmail('BukGet is down!', stats);
+		              } else if (stats.status == 'down' && status == 'up') {
+		              	stats.status = status;
+		              	Status.sendEmail('BukGet is back up!', stats);
 		              }
 
 		              stats.status = status;
@@ -81,12 +90,27 @@ Status.check = function () {
   return;
 };
 
+Status.sendEmail = function (title, body) {
+	postmark.send({
+	    'From': 'staff@bukget.org',
+	    'To': 'staff@bukget.org',
+	    'Subject': title,
+	    'TextBody': body
+	}, function(error, success) {
+	    if(error) {
+	        console.error('Unable to send via postmark: ' + error.message);
+	       return;
+	    }
+	    console.info('Sent to postmark for delivery')
+	});
+};
+
 for (var server in Status.servers) {
 	stats['servers'][Status.servers[server]] = {};
 	for (var version in Status.versions) {
 		stats['servers'][Status.servers[server]][version] = {};
 		for (var section in Status.versions[version]) {
-			stats['servers'][Status.servers[server]][version][section] = "pending";
+			stats['servers'][Status.servers[server]][version][section] = 'pending';
 		}
 	}
 }
