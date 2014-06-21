@@ -1,0 +1,10 @@
+language: node_js
+node_js:
+- '0.10'
+deploy:
+  before_deploy: echo 'ready?'
+  provider: heroku
+  buildpack: nodejs
+  api_key:
+    secure: iOHAcX97sktieTsaotOgPW8OxO9sSSJCtBCquvlIEQ5TOA4ilZIsqwVqRllYyJtd+Uha/rKxGZMfRpB0/kiVXxbq918Uxu3L5RF4SZrRg/s4tagBulQGwCuAYmkRdrN2BIa9+OSGftkTLRyWF7pzlKW5ZkFzfhgztH5ZhnmTubE=
+  app: bukget-monitor
