@@ -115,8 +115,6 @@ for (var server in Status.servers) {
 	}
 }
 
-Status.sendEmail('BukGet Monitor Started!', JSON.stringify({ 'message': 'BukGet Monitor Started!', 'stats': stats }));
-
 Status.check();
 
 setInterval(function() {
