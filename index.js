@@ -69,10 +69,10 @@ Status.check = function () {
 
 		              if (stats.status != 'down' && status == 'down') {
 			              stats.status = status;
-			              Status.sendEmail('BukGet is down!', stats);
+			              Status.sendEmail('BukGet is down!', JSON.stringify(stats));
 		              } else if (stats.status == 'down' && status == 'up') {
 		              	stats.status = status;
-		              	Status.sendEmail('BukGet is back up!', stats);
+		              	Status.sendEmail('BukGet is back up!', JSON.stringify(stats));
 		              }
 
 		              stats.status = status;
@@ -114,6 +114,8 @@ for (var server in Status.servers) {
 		}
 	}
 }
+
+sendEmail('BukGet Monitor Started!', JSON.stringify({ 'message': 'BukGet Monitor Started!' }));
 
 Status.check();
 
