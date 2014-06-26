@@ -59,23 +59,23 @@ Status.check = function () {
 		            errors += (error == 'ETIMEDOUT' || !status ? 1 : 0);
 		            stats['servers'][server][version][section] = (error == 'ETIMEDOUT' ? 'warning' : (status ? 'ok' : 'down'));
 		            if (called === length && version === 'v3') {
-		              var status = 'ok';
+		              var the_status = 'ok';
 
 		              if (errors > 3) {
-		                status = 'down';
+		                the_status = 'down';
 		              } else if (errors) {
-		                status = 'warning';
+		                the_status = 'warning';
 		              }
 
-		              if (stats.status != 'down' && status == 'down') {
-			              stats.status = status;
-			              Status.sendEmail('BukGet is down!', JSON.stringify(stats));
-		              } else if (stats.status == 'down' && status == 'up') {
-		              	stats.status = status;
+		              if (stats.status != 'down' && the_status == 'down') {
+		              	stats.status = the_status;
+              			Status.sendEmail('BukGet is down!', JSON.stringify(stats));
+		              } else if (stats.status == 'down' && the_status == 'ok') {
+		              	stats.status = the_status;
 		              	Status.sendEmail('BukGet is back up!', JSON.stringify(stats));
+		              } else {
+	            	  	stats.status = the_status;
 		              }
-
-		              stats.status = status;
 		            }
 
 		            return;
