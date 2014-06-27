@@ -41,12 +41,14 @@ Status.call = function (server, uri, callback) {
 };
 
 Status.check = function () {
+  var serverCount = Status.servers.length;
+  var doneCount = 0;
+  var totalErrors = 0;
   for (var server in Status.servers) {
   	(function request (server) {
 		  for (var version in Status.versions) {
 		    (function request (version) {
 		      var sections = Status.versions[version];
-		      var errors = 0;
 		      var called = 0;
 		      var length = Object.keys(sections).length;
 
@@ -56,25 +58,28 @@ Status.check = function () {
 
 		          return Status.call(server, path, function (status, error) {
 		            called++;
-		            errors += (error == 'ETIMEDOUT' || !status ? 1 : 0);
+		            totalErrors += (error == 'ETIMEDOUT' || !status ? 1 : 0);
 		            stats['servers'][server][version][section] = (error == 'ETIMEDOUT' ? 'warning' : (status ? 'ok' : 'down'));
 		            if (called === length && version === 'v3') {
-		              var the_status = 'ok';
+		              doneCount++;
+		              if (doneCount >= serverCount) {
+			              var the_status = 'ok';
 
-		              if (errors > 3) {
-		                the_status = 'down';
-		              } else if (errors) {
-		                the_status = 'warning';
-		              }
+			              if (totalErrors > 3) {
+			                the_status = 'down';
+			              } else if (totalErrors) {
+			                the_status = 'warning';
+			              }
 
-		              if (stats.status != 'down' && the_status == 'down') {
-		              	stats.status = the_status;
-              			Status.sendEmail('BukGet is down!', JSON.stringify(stats));
-		              } else if (stats.status == 'down' && the_status == 'ok') {
-		              	stats.status = the_status;
-		              	Status.sendEmail('BukGet is back up!', JSON.stringify(stats));
-		              } else {
-	            	  	stats.status = the_status;
+			              if (stats.status != 'down' && the_status == 'down') {
+			              	stats.status = the_status;
+	              			Status.sendEmail('BukGet is down!', JSON.stringify(stats));
+			              } else if (stats.status == 'down' && the_status == 'ok') {
+			              	stats.status = the_status;
+			              	Status.sendEmail('BukGet is back up!', JSON.stringify(stats));
+			              } else {
+			              	stats.status = the_status;
+			              }
 		              }
 		            }
 
