@@ -3,10 +3,17 @@ var unirest = require('unirest');
 var stats = { 'status' : 'pending', 'servers' : {} };
 var postmark = require('postmark')(process.env.POSTMARK_API_KEY)
 
+var started = false;
+var lastSerial = 0;
+var serialRevision = 0;
+var lastServers = {};
+
 var Status = {
   servers: [
-    'chicago.api.bukget.org', 
-    'paris.api.bukget.org'
+    'ca' : { 'ip': '192.155.97.86', 'region': 'us' },
+    'ny' : { 'ip': '192.227.140.113', 'region': 'us' },
+    'de' : { 'ip': '5.62.103.8', 'region': 'europe' },
+    'fr' : { 'ip': '176.31.222.122', 'region': 'europe' }
   ],
 
   versions: {
@@ -29,7 +36,7 @@ var Status = {
 };
 
 Status.call = function (server, uri, callback) {
-  var url = 'http://' + server + uri;
+  var url = 'http://' + server + '.api.bukget.org' + uri;
 
 	unirest.get(url).headers({ 'User-Agent': 'BukGet-Monitor' }).timeout(20000).end(function (response) {
 		if (response.error) {
@@ -61,6 +68,10 @@ Status.check = function () {
 		            totalErrors += (error == 'ETIMEDOUT' || !status ? 1 : 0);
 		            stats['servers'][server][version][section] = (error == 'ETIMEDOUT' ? 'warning' : (status ? 'ok' : 'down'));
 		            if (called === length && version === 'v3') {
+		            	if (!started) {
+		            		started = true;
+										Status.checkDnsConsistency();
+		            	}
 		              doneCount++;
 		              if (doneCount >= serverCount) {
 			              var the_status = 'ok';
@@ -74,9 +85,11 @@ Status.check = function () {
 			              if (stats.status != 'down' && the_status == 'down') {
 			              	stats.status = the_status;
 	              			Status.sendEmail('BukGet is down!', JSON.stringify(stats));
+	              			Status.dnsRefresh();
 			              } else if (stats.status == 'down' && the_status == 'ok') {
 			              	stats.status = the_status;
 			              	Status.sendEmail('BukGet is back up!', JSON.stringify(stats));
+			              	Status.dnsRefresh();
 			              } else {
 			              	stats.status = the_status;
 			              }
@@ -89,7 +102,7 @@ Status.check = function () {
 		      }
 		    })(version);
 		  }
-		})(Status.servers[server]);
+		})(server);
 	}
 
   return;
@@ -111,20 +124,96 @@ Status.sendEmail = function (title, body) {
 };
 
 for (var server in Status.servers) {
-	stats['servers'][Status.servers[server]] = {};
+	stats['servers'][server] = {};
 	for (var version in Status.versions) {
-		stats['servers'][Status.servers[server]][version] = {};
+		stats['servers'][server][version] = {};
 		for (var section in Status.versions[version]) {
-			stats['servers'][Status.servers[server]][version][section] = 'pending';
+			stats['servers'][server][version][section] = 'pending';
 		}
 	}
 }
+
+Status.updateSerial = function(callback) {
+	var now = new Date();
+	var newSerial = now.getFullYear() + "" + ("0" + (now.getMonth() + 1)).slice(-2) + ("0" + now.getDate()).slice(-2);
+	if (lastSerial != newSerial) {
+		serialRevision = 0;
+		lastSerial = newSerial;
+	}
+}
+
+Status.dnsRefresh = function () {
+	updateSerial();
+	serialRevision++;
+	if (serialRevision > 99) {
+		serialRevision = 0;
+	}
+	var servers = [];
+
+  for (var server in stats['servers']) {
+  	var downCount = 0;
+  	for (var i in stats['servers'][server]['v3']) {
+  		if (stats['servers'][server]['v3'][i] == 'down') {
+  			downCount++;
+  		}
+  	}
+
+  	if (downCount > 0) {
+			servers.push({ 'name': server, 'ns': server + '.ns.bukget.org', 'api': server + '.api.bukget.org', 'ip': Status.servers[server]['ip'], 'region': Status.servers[server]['region'] });
+		}
+  }
+  lastServers = servers;
+	Status.dnsRefreshServers(servers);
+  console.log("Updated DNS");
+}
+
+Status.dnsRefreshServers = function (servers) {
+	for (var server in Status.servers) {
+		Status.dnsRefreshServer(server, servers);
+	}
+}
+
+Status.dnsRefreshServer = function (server, servers) {
+	unirest.post('http://' + server + '.ns.bukget.org/dnsupdate')
+	.headers({ 'Accept': 'application/json' })
+	.send({ "key": process.env.DNS_CHANGER, "servers": JSON.stringify(servers), "serial": (lastSerial + "" + ("0" + serialRevision).slice(-2)) })
+	.end(function (response) {
+		if (response.error) {
+			console.log("Couldn't update DNS for " + server);
+		}
+	});
+}
+
+Status.checkDnsConsistency = function () {
+		if (lastServers == null) {
+			return;
+  	}
+	  for (var server in Status.servers) {
+			unirest.get('http://' + server + '.ns.bukget.org/serial').as.json(function (response) {
+			    try {
+			      response.body = JSON.parse(response.body)
+			    } catch (e) {
+			      console.log('Couldn\'t get current serial for ' + server);
+			      return;
+			    }
+			    if (response.body['serial'] != (lastSerial + "" + ("0" + serialRevision).slice(-2)) {
+			    	Status.dnsRefreshServer(server, lastServers);
+			    }
+			});
+		}
+}
+
+Status.initialSerial();
 
 Status.check();
 
 setInterval(function() {
 	Status.check();
 }, 1000 * 60);
+
+setInterval(function() {
+	Status.checkDnsConsistency();
+}, 1000 * 60 * 60);
 
 setInterval(function() {
 	unirest.get('http://bukget-monitor.herokuapp.com').end(function (response) {});
