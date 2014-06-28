@@ -16,6 +16,7 @@
   "dependencies": {
     "restify": "~2.6.1",
     "unirest": "^0.1.8",
-    "postmark": "^0.2.5"
+    "postmark": "^0.2.5",
+    "cloudflare": "0.0.6"
   }
 }

@@ -1,20 +1,20 @@
 var restify = require('restify');
 var unirest = require('unirest');
 var stats = { 'status' : 'pending', 'servers' : {} };
-var postmark = require('postmark')(process.env.POSTMARK_API_KEY)
+var postmark = require('postmark')(process.env.POSTMARK_API_KEY);
+var cloudflare = require('cloudflare').createClient({ email: process.env.CLOUDFLARE_EMAIL, token: process.env.CLOUDFLARE_API_KEY });
 
 var started = false;
 var lastSerial = 0;
-var serialRevision = 0;
-var lastServers = {};
+var serialRevision = 1;
 
 var Status = {
-  servers: [
+  servers: {
     'ca' : { 'ip': '192.155.97.86', 'region': 'us' },
     'ny' : { 'ip': '192.227.140.113', 'region': 'us' },
     'de' : { 'ip': '5.62.103.8', 'region': 'europe' },
     'fr' : { 'ip': '176.31.222.122', 'region': 'europe' }
-  ],
+  },
 
   versions: {
     'v3': {
@@ -137,7 +137,7 @@ Status.updateSerial = function(callback) {
 	var now = new Date();
 	var newSerial = now.getFullYear() + "" + ("0" + (now.getMonth() + 1)).slice(-2) + ("0" + now.getDate()).slice(-2);
 	if (lastSerial != newSerial) {
-		serialRevision = 0;
+		serialRevision = 1;
 		lastSerial = newSerial;
 	}
 }
@@ -146,10 +146,18 @@ Status.dnsRefresh = function () {
 	updateSerial();
 	serialRevision++;
 	if (serialRevision > 99) {
-		serialRevision = 0;
+		serialRevision = 1;
 	}
-	var servers = [];
 
+	Status.dnsGetServers(function (callback) {
+		Status.updateCloudflare(callback);
+		Status.dnsRefreshServers(callback);
+	});
+  console.log("Updated DNS");
+}
+
+Status.dnsGetServers = function (callback) {
+	var servers = [];
   for (var server in stats['servers']) {
   	var downCount = 0;
   	for (var i in stats['servers'][server]['v3']) {
@@ -158,13 +166,11 @@ Status.dnsRefresh = function () {
   		}
   	}
 
-  	if (downCount > 0) {
+  	if (downCount == 0) {
 			servers.push({ 'name': server, 'ns': server + '.ns.bukget.org', 'api': server + '.api.bukget.org', 'ip': Status.servers[server]['ip'], 'region': Status.servers[server]['region'] });
 		}
   }
-  lastServers = servers;
-	Status.dnsRefreshServers(servers);
-  console.log("Updated DNS");
+  callback(servers);
 }
 
 Status.dnsRefreshServers = function (servers) {
@@ -174,6 +180,7 @@ Status.dnsRefreshServers = function (servers) {
 }
 
 Status.dnsRefreshServer = function (server, servers) {
+	console.log("Updating dns for " + server);
 	unirest.post('http://' + server + '.ns.bukget.org/dnsupdate')
 	.headers({ 'Accept': 'application/json' })
 	.send({ "key": process.env.DNS_CHANGER, "servers": JSON.stringify(servers), "serial": (lastSerial + "" + ("0" + serialRevision).slice(-2)) })
@@ -184,26 +191,84 @@ Status.dnsRefreshServer = function (server, servers) {
 	});
 }
 
-Status.checkDnsConsistency = function () {
-		if (lastServers == null) {
-			return;
-  	}
-	  for (var server in Status.servers) {
-			unirest.get('http://' + server + '.ns.bukget.org/serial').as.json(function (response) {
-			    try {
-			      response.body = JSON.parse(response.body)
-			    } catch (e) {
-			      console.log('Couldn\'t get current serial for ' + server);
-			      return;
-			    }
-			    if (response.body['serial'] != (lastSerial + "" + ("0" + serialRevision).slice(-2)) {
-			    	Status.dnsRefreshServer(server, lastServers);
-			    }
+Status.updateCloudflare = function(callback) {
+	var toBeAdded = []
+	for (var i in callback) {
+		toBeAdded.push(callback[i]['ns']);
+	}
+	cloudflare.listDomainRecords('bukget.org', function (err, domains) {
+	if (err) throw err;
+		for (var i in domains) {
+			var item = domains[i];
+			if (item['type'] == 'NS') {
+				var exists = false;
+				var name = item['content'].split('.')[0];
+				for (var server in callback) {
+					if (callback[server]['name'] == name) {
+						exists = true;
+					}
+				}
+				if (!exists) {
+					cloudflare.deleteDomainRecord('bukget.org', item['rec_id'], function(err, success) {
+						console.log("Deleted record");
+					})
+				} else {
+					var index = toBeAdded.indexOf(item['content']);
+				if (index !== -1) {
+				    toBeAdded.splice(index, 1);
+				}
+				}
+			}
+		}
+		for (var record in toBeAdded) {
+			cloudflare.addDomainRecord('bukget.org', { 'type': 'NS', 'name': 'api', 'content': toBeAdded[record], 'ttl': 300 }, function (err, success) {
+				console.log("Added record!");
 			});
 		}
+	});
 }
 
-Status.initialSerial();
+Status.checkDnsConsistency = function () {
+		Status.dnsGetServers(function (callback) {
+ 			Status.updateCloudflare(callback);
+		  for (var server in Status.servers) {
+		  	(function request (server) {	
+	        return Status.needsUpdate(server, function (status, error) {
+		  			if(error) {
+					      console.log('Couldn\'t get current serial for ' + server);
+			  		}
+
+			  		if (status) {
+			    		Status.dnsRefreshServer(server, callback);
+			  		}
+	        })
+				})(server); 
+			}
+		});
+}
+
+Status.needsUpdate = function (server, callback) {
+	unirest.get('http://' + server + '.ns.bukget.org/serial').end(function (response) {
+			if (response.error) {
+				return callback(false, response.error);
+			}
+
+	    try {
+	      response.body = JSON.parse(response.body);
+	    } catch (e) {
+	    	callback(false, 'Couldn\'t parse json');
+	    	return;
+	    }
+
+	    if (response.body['serial'] != (lastSerial + "" + ("0" + serialRevision).slice(-2))) {
+	    	return callback(true);
+	    }
+
+	    return callback(false);
+	});
+}
+
+Status.updateSerial();
 
 Status.check();
 
@@ -232,5 +297,11 @@ app.use(function (req, res, next) {
 app.get('/', function (req, res, next) {
 	res.send(stats);
 });
+
+app.get('/currentDNS', function (req, res, next) {
+	Status.dnsGetServers(function (callback) {
+		res.send({ 'serial': (lastSerial + "" + ("0" + serialRevision).slice(-2)), 'servers': callback })
+	});
+})
 
 app.listen(process.env.PORT || 5000);
