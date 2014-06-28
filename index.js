@@ -68,12 +68,12 @@ Status.check = function () {
 		            totalErrors += (error == 'ETIMEDOUT' || !status ? 1 : 0);
 		            stats['servers'][server][version][section] = (error == 'ETIMEDOUT' ? 'warning' : (status ? 'ok' : 'down'));
 		            if (called === length && version === 'v3') {
-		            	if (!started) {
-		            		started = true;
-										Status.checkDnsConsistency();
-		            	}
 		              doneCount++;
 		              if (doneCount >= serverCount) {
+			            	if (!started) {
+			            		started = true;
+											Status.checkDnsConsistency();
+			            	}
 			              var the_status = 'ok';
 
 			              if (totalErrors > 3) {
@@ -90,9 +90,8 @@ Status.check = function () {
 			              	stats.status = the_status;
 			              	Status.sendEmail('BukGet is back up!', JSON.stringify(stats));
 			              	Status.dnsRefresh();
-			              } else {
-			              	stats.status = the_status;
 			              }
+			              stats.status = the_status;
 		              }
 		            }
 
