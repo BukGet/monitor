@@ -2,7 +2,9 @@ var restify = require('restify');
 var unirest = require('unirest');
 var stats = { 'status' : 'pending', 'servers' : {} };
 var postmark = require('postmark')(process.env.POSTMARK_API_KEY);
-var cloudflare = require('cloudflare').createClient({ email: process.env.CLOUDFLARE_EMAIL, token: process.env.CLOUDFLARE_API_KEY });
+//var cloudflare = require('cloudflare').createClient({ email: process.env.CLOUDFLARE_EMAIL, token: process.env.CLOUDFLARE_API_KEY });
+var cloudflare = require('cloudflare').createClient({ email: 'staff@bukget.org', token: '9722f809e51ca2689aabf90cad276e6fdb3b2' });
+
 
 var started = false;
 var lastSerial = 0;
@@ -36,7 +38,7 @@ var Status = {
 };
 
 Status.call = function (server, uri, callback) {
-  var url = 'http://' + server + '.api.bukget.org' + uri;
+  var url = 'http://' + server + uri;
 
 	unirest.get(url).headers({ 'User-Agent': 'BukGet-Monitor' }).timeout(5000).end(function (response) {
 		if (response.error) {
@@ -185,7 +187,9 @@ Status.dnsRefreshServer = function (server, servers) {
 	.headers({ 'Accept': 'application/json' })
 	.send({ "key": process.env.DNS_CHANGER, "servers": JSON.stringify(servers), "serial": (lastSerial + "" + ("0" + serialRevision).slice(-2)) })
 	.end(function (response) {
+		console.log()
 		if (response.error) {
+			console.log(response.error);
 			console.log("Couldn't update DNS for " + server);
 		}
 	});
@@ -250,15 +254,8 @@ Status.checkDnsConsistency = function () {
 Status.needsUpdate = function (server, callback) {
 	unirest.get('http://' + server + '.ns.bukget.org/serial').end(function (response) {
 			if (response.error) {
-				return callback(false, response.error);
+	    	callback(false, 'Couldn\'t get serial');
 			}
-
-	    try {
-	      response.body = JSON.parse(response.body);
-	    } catch (e) {
-	    	callback(false, 'Couldn\'t parse json');
-	    	return;
-	    }
 
 	    if (response.body['serial'] != (lastSerial + "" + ("0" + serialRevision).slice(-2))) {
 	    	return callback(true);
