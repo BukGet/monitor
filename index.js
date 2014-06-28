@@ -10,10 +10,10 @@ var serialRevision = 1;
 
 var Status = {
   servers: {
-  	'ca' : { 'ip': '192.155.97.86', 'region': 'us' },
-    'ny' : { 'ip': '192.227.140.113', 'region': 'us' },
-    'de' : { 'ip': '5.62.103.8', 'region': 'europe' },
-    'fr' : { 'ip': '176.31.222.122', 'region': 'europe' }
+  	'ca' : { 'ip': '192.155.97.86', 'region': 'us', 'down': false },
+    'ny' : { 'ip': '192.227.140.113', 'region': 'us', 'down': false },
+    'de' : { 'ip': '5.62.103.8', 'region': 'europe', 'down': false },
+    'fr' : { 'ip': '176.31.222.122', 'region': 'europe', 'down': false }
   },
 
   versions: {
@@ -51,10 +51,12 @@ Status.check = function () {
   var serverCount = Object.keys(Status.servers).length;
   var doneCount = 0;
   var totalErrors = 0;
+  var doRefresh = false;
   for (var server in Status.servers) {
   	(function request (server) {
 		  for (var version in Status.versions) {
 		    (function request (version) {
+		    	var errors = 0;
 		      var sections = Status.versions[version];
 		      var called = 0;
 		      var length = Object.keys(sections).length;
@@ -65,9 +67,17 @@ Status.check = function () {
 
 		          return Status.call(Status.servers[server]['ip'], path, function (status, error) {
 		            called++;
+		            errors += (error == 'ETIMEDOUT' || !status ? 1 : 0);
 		            totalErrors += (error == 'ETIMEDOUT' || !status ? 1 : 0);
 		            stats['servers'][server][version][section] = (error == 'ETIMEDOUT' ? 'warning' : (status ? 'ok' : 'down'));
 		            if (called === length && version === 'v3') {
+		            	if (errors > 3 && !Status.servers[server]['down']) {
+		            		Status.servers[server]['down'] = true;
+		            		doRefresh = true;
+		            	} else if (errors < 3 && Status.servers[server]['down']) {
+		            		Status.servers[server]['down'] = false;
+		            		doRefresh = true;
+		            	}
 		              doneCount++;
 		              if (doneCount >= serverCount) {
 			              var the_status = 'ok';
@@ -81,11 +91,11 @@ Status.check = function () {
 			              if (stats.status != 'down' && the_status == 'down') {
 			              	stats.status = the_status;
 	              			Status.sendEmail('BukGet is down!', JSON.stringify(stats));
-	              			Status.dnsRefresh();
+	              			doRefresh = true;
 			              } else if (stats.status == 'down' && the_status == 'ok') {
 			              	stats.status = the_status;
 			              	Status.sendEmail('BukGet is back up!', JSON.stringify(stats));
-			              	Status.dnsRefresh();
+			              	doRefresh = true;
 			              } else {
 			              	stats.status = the_status;
 				            	if (!started) {
@@ -93,6 +103,10 @@ Status.check = function () {
 												Status.checkDnsConsistency();
 			            		}
 			            	}
+
+			              if (doRefresh) {
+			            		Status.dnsRefresh();
+			              }
 		              }
 		            }
 
