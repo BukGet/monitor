@@ -63,7 +63,7 @@ Status.check = function () {
 		        (function request (section) {
 		          var path = sections[section];
 
-		          return Status.call(server, path, function (status, error) {
+		          return Status.call(Status.servers[server]['ip'], path, function (status, error) {
 		            called++;
 		            totalErrors += (error == 'ETIMEDOUT' || !status ? 1 : 0);
 		            stats['servers'][server][version][section] = (error == 'ETIMEDOUT' ? 'warning' : (status ? 'ok' : 'down'));
