@@ -48,7 +48,7 @@ Status.call = function (server, uri, callback) {
 };
 
 Status.check = function () {
-  var serverCount = Status.servers.length;
+  var serverCount = Object.keys(Status.servers).length;
   var doneCount = 0;
   var totalErrors = 0;
   for (var server in Status.servers) {
@@ -86,11 +86,12 @@ Status.check = function () {
 			              	stats.status = the_status;
 			              	Status.sendEmail('BukGet is back up!', JSON.stringify(stats));
 			              	Status.dnsRefresh();
-			              }
-			              stats.status = the_status;
-			            	if (!started) {
-			            		started = true;
-											Status.checkDnsConsistency();
+			              } else {
+			              	stats.status = the_status;
+				            	if (!started) {
+			            			started = true;
+												Status.checkDnsConsistency();
+			            		}
 			            	}
 		              }
 		            }
@@ -142,7 +143,7 @@ Status.updateSerial = function(callback) {
 }
 
 Status.dnsRefresh = function () {
-	updateSerial();
+	Status.updateSerial();
 	serialRevision++;
 	if (serialRevision > 99) {
 		serialRevision = 1;
