@@ -67,15 +67,15 @@ Status.check = function () {
 
 		          return Status.call(Status.servers[server]['ip'], path, function (status, error) {
 		            called++;
-		            errors += (error == 'ETIMEDOUT' || !status ? 1 : 0);
-		            totalErrors += (error == 'ETIMEDOUT' || !status ? 1 : 0);
+		            errors += (error == 'ETIMEDOUT' || status ? 0 : 1);
+		            totalErrors += (error == 'ETIMEDOUT' || status ? 0 : 1);
 		            stats['servers'][server][version][section] = (error == 'ETIMEDOUT' ? 'warning' : (status ? 'ok' : 'down'));
 		            if (called === length && version === 'v3') {
-		            	if (errors > 3 && !Status.servers[server]['down']) {
-		            		Status.servers[server]['down'] = true;
+		            	if (errors > 3 && !Status.servers[server].down) {
+		            		Status.servers[server].down = true;
 		            		doRefresh = true;
-		            	} else if (errors < 3 && Status.servers[server]['down']) {
-		            		Status.servers[server]['down'] = false;
+		            	} else if (errors < 3 && Status.servers[server].down) {
+		            		Status.servers[server].down = false;
 		            		doRefresh = true;
 		            	}
 		              doneCount++;
@@ -88,11 +88,11 @@ Status.check = function () {
 			                the_status = 'warning';
 			              }
 
-			              if (stats.status != 'down' && the_status == 'down') {
+			              if (stats.status !== 'down' && the_status === 'down') {
 			              	stats.status = the_status;
 	              			Status.sendEmail('BukGet is down!', JSON.stringify(stats));
 	              			doRefresh = true;
-			              } else if (stats.status == 'down' && the_status == 'ok') {
+			              } else if (stats.status === 'down' && the_status === 'ok') {
 			              	stats.status = the_status;
 			              	Status.sendEmail('BukGet is back up!', JSON.stringify(stats));
 			              	doRefresh = true;
