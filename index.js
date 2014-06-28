@@ -38,7 +38,7 @@ var Status = {
 Status.call = function (server, uri, callback) {
   var url = 'http://' + server + '.api.bukget.org' + uri;
 
-	unirest.get(url).headers({ 'User-Agent': 'BukGet-Monitor' }).timeout(20000).end(function (response) {
+	unirest.get(url).headers({ 'User-Agent': 'BukGet-Monitor' }).timeout(5000).end(function (response) {
 		if (response.error) {
 			return callback(false, response.error);
 		}
@@ -70,10 +70,6 @@ Status.check = function () {
 		            if (called === length && version === 'v3') {
 		              doneCount++;
 		              if (doneCount >= serverCount) {
-			            	if (!started) {
-			            		started = true;
-											Status.checkDnsConsistency();
-			            	}
 			              var the_status = 'ok';
 
 			              if (totalErrors > 3) {
@@ -92,6 +88,10 @@ Status.check = function () {
 			              	Status.dnsRefresh();
 			              }
 			              stats.status = the_status;
+			            	if (!started) {
+			            		started = true;
+											Status.checkDnsConsistency();
+			            	}
 		              }
 		            }
 
