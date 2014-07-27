@@ -62,57 +62,59 @@ Status.check = function () {
           var length = Object.keys(sections).length;
 
           for (var section in sections) {
-            (function request (section) {
-              var path = sections[section];
+            setInterval(function() {
+              (function request (section) {
+                var path = sections[section];
 
-              return Status.call(Status.servers[server]['ip'], path, function (status, error) {
-                called++;
-                errors += (error == 'ETIMEDOUT' || status ? 0 : 1);
-                totalErrors += (error == 'ETIMEDOUT' || status ? 0 : 1);
-                stats['servers'][server][version][section] = (error == 'ETIMEDOUT' ? 'warning' : (status ? 'ok' : 'down'));
-                if (called === length && version === 'v3') {
-                  if (errors > 3 && !Status.servers[server].down) {
-                    Status.servers[server].down = true;
-                    doRefresh = true;
-                  } else if (errors < 3 && Status.servers[server].down) {
-                    Status.servers[server].down = false;
-                    doRefresh = true;
-                  }
-                  doneCount++;
-                  if (doneCount >= serverCount) {
-                    var the_status = 'ok';
-
-                    if (totalErrors > 3) {
-                      the_status = 'down';
-                    } else if (totalErrors) {
-                      the_status = 'warning';
+                return Status.call(Status.servers[server]['ip'], path, function (status, error) {
+                  called++;
+                  errors += (error == 'ETIMEDOUT' || status ? 0 : 1);
+                  totalErrors += (error == 'ETIMEDOUT' || status ? 0 : 1);
+                  stats['servers'][server][version][section] = (error == 'ETIMEDOUT' ? 'warning' : (status ? 'ok' : 'down'));
+                  if (called === length && version === 'v3') {
+                    if (errors > 3 && !Status.servers[server].down) {
+                      Status.servers[server].down = true;
+                      doRefresh = true;
+                    } else if (errors < 3 && Status.servers[server].down) {
+                      Status.servers[server].down = false;
+                      doRefresh = true;
                     }
+                    doneCount++;
+                    if (doneCount >= serverCount) {
+                      var the_status = 'ok';
 
-                    if (stats.status !== 'down' && the_status === 'down') {
-                      stats.status = the_status;
-                      Status.sendEmail('BukGet is down!', JSON.stringify(stats));
-                      doRefresh = true;
-                    } else if (stats.status === 'down' && the_status === 'ok') {
-                      stats.status = the_status;
-                      Status.sendEmail('BukGet is back up!', JSON.stringify(stats));
-                      doRefresh = true;
-                    } else {
-                      stats.status = the_status;
-                      if (!started) {
-                        started = true;
-                        Status.checkDnsConsistency();
+                      if (totalErrors > 3) {
+                        the_status = 'down';
+                      } else if (totalErrors > 0) {
+                        the_status = 'warning';
+                      }
+
+                      if (stats.status !== 'down' && the_status === 'down') {
+                        stats.status = the_status;
+                        Status.sendEmail('BukGet is down!', JSON.stringify(stats));
+                        doRefresh = true;
+                      } else if (stats.status === 'down' && the_status === 'ok') {
+                        stats.status = the_status;
+                        Status.sendEmail('BukGet is back up!', JSON.stringify(stats));
+                        doRefresh = true;
+                      } else {
+                        stats.status = the_status;
+                        if (!started) {
+                          started = true;
+                          Status.checkDnsConsistency();
+                        }
+                      }
+
+                      if (doRefresh) {
+                        Status.dnsRefresh();
                       }
                     }
-
-                    if (doRefresh) {
-                      Status.dnsRefresh();
-                    }
                   }
-                }
 
-                return;
-              });
-            })(section);
+                  return;
+                });
+              })(section);
+            }, (Math.floor(Math.random() * (30 - 1 + 1) + 1) * 1000));
           }
         })(version);
       }
