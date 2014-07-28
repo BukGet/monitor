@@ -62,8 +62,7 @@ Status.check = function () {
           var length = Object.keys(sections).length;
 
           for (var section in sections) {
-            setInterval(function() {
-              (function request (section) {
+            setTimeout(function request (section) {
                 var path = sections[section];
 
                 return Status.call(Status.servers[server]['ip'], path, function (status, error) {
@@ -113,8 +112,7 @@ Status.check = function () {
 
                   return;
                 });
-              })(section);
-            }, (Math.floor(Math.random() * (30 - 1 + 1) + 1) * 1000));
+            }, (Math.floor(Math.random() * (30 - 1 + 1) + 1) * 1000), section);
           }
         })(version);
       }
