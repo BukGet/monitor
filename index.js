@@ -316,4 +316,4 @@ app.get('/currentDNS', function (req, res, next) {
 
 Status.sendEmail('BukGet monitor has started!', 'It has indeed');
 
-app.listen(process.env.PORT || 5000);
+app.listen(process.env.OPENSHIFT_NODEJS_PORT || 5000, process.env.OPENSHIFT_NODEJS_IP || '0.0.0.0');
