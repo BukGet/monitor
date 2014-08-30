@@ -133,7 +133,7 @@ Status.check = function () {
 
 Status.sendEmail = function (title, body) {
   transporter.sendMail({
-      from: 'staff@bukget.org',
+      from: 'BukGet Monitor <staff@bukget.org>',
       to: 'staff@bukget.org',
       subject: title,
       text: body
