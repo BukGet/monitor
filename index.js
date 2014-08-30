@@ -8,7 +8,7 @@ var transporter = nodemailer.createTransport(smtpTransport({
     host: 'smtp.mandrillapp.com',
     port: 587,
     auth: {
-        user: process.env.MANDRILL_USER
+        user: process.env.MANDRILL_USER,
         pass: process.env.MANDRILL_PASS
     }
 }));
