@@ -1,8 +1,17 @@
 var restify = require('restify');
 var unirest = require('unirest');
 var stats = { 'status' : 'pending', 'servers' : {} };
-var postmark = require('postmark')(process.env.POSTMARK_API_KEY);
 var cloudflare = require('cloudflare').createClient({ email: process.env.CLOUDFLARE_EMAIL, token: process.env.CLOUDFLARE_API_KEY });
+var nodemailer = require('nodemailer');
+var smtpTransport = require('nodemailer-smtp-transport');
+var transporter = nodemailer.createTransport(smtpTransport({
+    host: 'smtp.mandrillapp.com',
+    port: 587,
+    auth: {
+        user: process.env.MANDRILL_USER
+        pass: process.env.MANDRILL_PASS
+    }
+}));
 
 var started = false;
 var lastSerial = 0;
@@ -123,17 +132,11 @@ Status.check = function () {
 };
 
 Status.sendEmail = function (title, body) {
-  postmark.send({
-      'From': 'staff@bukget.org',
-      'To': 'staff@bukget.org',
-      'Subject': title,
-      'TextBody': body
-  }, function(error, success) {
-      if(error) {
-          console.error('Unable to send via postmark: ' + error.message);
-         return;
-      }
-      console.info('Sent to postmark for delivery')
+  transporter.sendMail({
+      from: 'staff@bukget.org',
+      to: 'staff@bukget.org',
+      subject: title,
+      text: body
   });
 };
 
@@ -289,9 +292,8 @@ setInterval(function() {
 }, 1000 * 60 * 60);
 
 setInterval(function() {
-  unirest.get('http://bukget-monitor.herokuapp.com').end(function (response) {});
+  unirest.get('http://monitor.bukget.org').end(function (response) {});
 }, 1000 * 60 * 20);
-
 
 var app = restify.createServer();
 
@@ -311,5 +313,7 @@ app.get('/currentDNS', function (req, res, next) {
     res.send({ 'serial': (lastSerial + "" + ("0" + serialRevision).slice(-2)), 'servers': callback })
   });
 })
+
+Status.sendEmail('BukGet monitor has started!', 'It has indeed');
 
 app.listen(process.env.PORT || 5000);
