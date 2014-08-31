@@ -1,48 +1,39 @@
 var restify = require('restify');
 var unirest = require('unirest');
-var stats = { 'status' : 'pending', 'servers' : {} };
 var cloudflare = require('cloudflare').createClient({ email: process.env.CLOUDFLARE_EMAIL, token: process.env.CLOUDFLARE_API_KEY });
 var nodemailer = require('nodemailer');
 var smtpTransport = require('nodemailer-smtp-transport');
+var async = require('async');
+var config = require('./config');
 var transporter = nodemailer.createTransport(smtpTransport({
-    host: 'smtp.mandrillapp.com',
-    port: 587,
-    auth: {
-        user: process.env.MANDRILL_USER,
-        pass: process.env.MANDRILL_PASS
-    }
+  host: 'smtp.mandrillapp.com',
+  port: 587,
+  auth: {
+    user: process.env.MANDRILL_USER,
+    pass: process.env.MANDRILL_PASS
+  }
 }));
 
+var stats = { 'status' : 'pending', 'servers' : {} };
 var started = false;
 var lastSerial = 0;
 var serialRevision = 1;
+var currentlyChecking = false;
+var checks = [];
 
-var Status = {
-  servers: {
-    'ca' : { 'ip': '192.155.97.86', 'region': 'us', 'down': false },
-    'ny' : { 'ip': '192.227.140.113', 'region': 'us', 'down': false },
-    'de' : { 'ip': '5.62.103.8', 'region': 'europe', 'down': false },
-    'fr' : { 'ip': '176.31.222.122', 'region': 'europe', 'down': false }
-  },
+var Status = {};
 
-  versions: {
-    'v3': {
-      'pl': '/3/plugins',
-      'plb': '/3/plugins/bukkit',
-      'pd': '/3/plugins/bukkit/pvp-arena',
-      'pdl': '/3/plugins/bukkit/pvp-arena/latest',
-      'pdr': '/3/plugins/bukkit/pvp-arena/release',
-      'pdb': '/3/plugins/bukkit/pvp-arena/beta',
-      'pda': '/3/plugins/bukkit/pvp-arena/alpha',
-      'cl': '/3/categories',
-      'cpl': '/3/categories/Admin Tools',
-      'al': '/3/authors',
-      'apl': '/3/authors/NuclearW',
-      'upd': '/3/updates?slug=dynmap',
-      'se': '/3/search/versions.type/=/Alpha?sort=-popularity.daily',
+Status.setupChecks = function () {
+  for (var server in config.servers) {
+    var the_server = config.servers[server];
+    for (var version in config.versions) {
+      var the_version = config.versions[version];
+      for (var section in the_version) {
+        checks.push({ 'server': server, 'host': the_server.ip, 'version': version, 'section': section, 'path': the_version[section]});
+      }
     }
   }
-};
+}
 
 Status.call = function (server, uri, callback) {
   var url = 'http://' + server + uri;
@@ -57,102 +48,96 @@ Status.call = function (server, uri, callback) {
 };
 
 Status.check = function () {
-  var serverCount = Object.keys(Status.servers).length;
-  var doneCount = 0;
-  var totalErrors = 0;
-  var doRefresh = false;
-  for (var server in Status.servers) {
-    (function request (server) {
-      for (var version in Status.versions) {
-        (function request (version) {
-          var errors = 0;
-          var sections = Status.versions[version];
-          var called = 0;
-          var length = Object.keys(sections).length;
-
-          for (var section in sections) {
-            setTimeout(function request (section) {
-                var path = sections[section];
-
-                return Status.call(Status.servers[server]['ip'], path, function (status, error) {
-                  called++;
-                  errors += (error == 'ETIMEDOUT' || status ? 0 : 1);
-                  totalErrors += (error == 'ETIMEDOUT' || status ? 0 : 1);
-                  stats['servers'][server][version][section] = (error == 'ETIMEDOUT' ? 'warning' : (status ? 'ok' : 'down'));
-                  if (called === length && version === 'v3') {
-                    if (errors > 3 && !Status.servers[server].down) {
-                      Status.servers[server].down = true;
-                      doRefresh = true;
-                    } else if (errors < 3 && Status.servers[server].down) {
-                      Status.servers[server].down = false;
-                      doRefresh = true;
-                    }
-                    doneCount++;
-                    if (doneCount >= serverCount) {
-                      var the_status = 'ok';
-
-                      if (totalErrors > 3) {
-                        the_status = 'down';
-                      } else if (totalErrors > 0) {
-                        the_status = 'warning';
-                      }
-
-                      if (stats.status !== 'down' && the_status === 'down') {
-                        stats.status = the_status;
-                        Status.sendEmail('BukGet is down!', JSON.stringify(stats));
-                        doRefresh = true;
-                      } else if (stats.status === 'down' && the_status === 'ok') {
-                        stats.status = the_status;
-                        Status.sendEmail('BukGet is back up!', JSON.stringify(stats));
-                        doRefresh = true;
-                      } else {
-                        stats.status = the_status;
-                        if (!started) {
-                          started = true;
-                          Status.checkDnsConsistency();
-                        }
-                      }
-
-                      if (doRefresh) {
-                        Status.dnsRefresh();
-                      }
-                    }
-                  }
-
-                  return;
-                });
-            }, (Math.floor(Math.random() * (30 - 1 + 1) + 1) * 1000), section);
-          }
-        })(version);
+  console.log('Running checks');
+  currentlyChecking = true;
+  var currentCheckResults = [];
+  async.eachSeries(checks, function (check, callback) {
+    Status.call(check.host, check.path, function (status, error) {
+      if (check.server == 'ny') {
+        status = false;
       }
-    })(server);
-  }
+      currentCheckResults.push({ 'server': check.server, 'section': check.section, 'version': check.version, 'status': (error == 'ETIMEDOUT' ? 'warning' : (status ? 'ok' : 'down')) });
+      callback();
 
-  return;
+    });
+  }, function (err) {
+    if (err) {
+      console.log('Error when checking status: ');
+      console.trace(err);
+    } else {
+      console.log('Checks successfully executed');
+    }
+    var totalErrors = 0;
+    for (var i in currentCheckResults) {
+      var checkResult = currentCheckResults[i];
+      if (checkResult.status == 'down') {
+        totalErrors++;
+      }
+      stats.servers[checkResult.server][checkResult.version][checkResult.section] = checkResult.status;
+    }
+    var the_status = 'ok';
+    if (totalErrors > 3) {
+      the_status = 'down';
+    } else if (totalErrors > 0) {
+      the_status = 'warning';
+    }
+
+    currentlyChecking = false;
+
+    var doRefresh = false;
+
+    if (stats.status !== 'down' && the_status === 'down') {
+      stats.status = the_status;
+      Status.sendEmail('BukGet is down!', JSON.stringify(stats));
+      doRefresh = true;
+    } else if (stats.status === 'down' && the_status === 'ok') {
+      stats.status = the_status;
+      Status.sendEmail('BukGet is back up!', JSON.stringify(stats));
+      doRefresh = true;
+    } else {
+      stats.status = the_status;
+    }
+
+    if (!started) {
+      started = true;
+      if (!doRefresh) {
+        console.log('Checking initial DNS consistency');
+        Status.checkDnsConsistency();
+      }
+    }
+
+    if (doRefresh) {
+      console.log('Refreshing DNS for state: %s', stats.status);
+      Status.dnsRefresh();
+    }
+    setTimeout(function () {
+      Status.check();
+    }, 1000 * 60);
+  });
 };
 
 Status.sendEmail = function (title, body) {
   transporter.sendMail({
-      from: 'BukGet Monitor <staff@bukget.org>',
-      to: 'staff@bukget.org',
-      subject: title,
-      text: body
+    from: 'BukGet Monitor <staff@bukget.org>',
+    to: 'staff@bukget.org',
+    subject: title,
+    text: body
   });
 };
 
-for (var server in Status.servers) {
+for (var server in config.servers) {
   stats['servers'][server] = {};
-  for (var version in Status.versions) {
+  for (var version in config.versions) {
     stats['servers'][server][version] = {};
-    for (var section in Status.versions[version]) {
+    for (var section in config.versions[version]) {
       stats['servers'][server][version][section] = 'pending';
     }
   }
 }
 
-Status.updateSerial = function(callback) {
+Status.updateSerial = function (callback) {
   var now = new Date();
-  var newSerial = now.getFullYear() + "" + ("0" + (now.getMonth() + 1)).slice(-2) + ("0" + now.getDate()).slice(-2);
+  var newSerial = now.getFullYear() + '' + ('0' + (now.getMonth() + 1)).slice(-2) + ('0' + now.getDate()).slice(-2);
   if (lastSerial != newSerial) {
     serialRevision = 1;
     lastSerial = newSerial;
@@ -170,7 +155,6 @@ Status.dnsRefresh = function () {
     Status.updateCloudflare(callback);
     Status.dnsRefreshServers(callback);
   });
-  console.log("Updated DNS");
 }
 
 Status.dnsGetServers = function (callback) {
@@ -184,38 +168,43 @@ Status.dnsGetServers = function (callback) {
     }
 
     if (downCount == 0) {
-      servers.push({ 'name': server, 'ns': server + '.ns.bukget.org', 'api': server + '.api.bukget.org', 'ip': Status.servers[server]['ip'], 'region': Status.servers[server]['region'] });
+      servers.push({ 'name': server, 'ns': server + '.ns.bukget.org', 'api': server + '.api.bukget.org', 'ip': config.servers[server]['ip'], 'region': config.servers[server]['region'] });
     }
   }
   callback(servers);
 }
 
 Status.dnsRefreshServers = function (servers) {
-  for (var server in Status.servers) {
+  for (var server in config.servers) {
     Status.dnsRefreshServer(server, servers);
   }
 }
 
 Status.dnsRefreshServer = function (server, servers) {
-  console.log("Updating dns for " + server);
+  console.log('Updating dns for %s', server);
   unirest.post('http://' + server + '.ns.bukget.org/dnsupdate')
   .headers({ 'Accept': 'application/json' })
-  .send({ "key": process.env.DNS_CHANGER, "servers": JSON.stringify(servers), "serial": (lastSerial + "" + ("0" + serialRevision).slice(-2)) })
+  .send({ 'key': process.env.DNS_CHANGER, 'servers': JSON.stringify(servers), 'serial': (lastSerial + '' + ('0' + serialRevision).slice(-2)) })
   .end(function (response) {
-    if (response.error) {
-      console.log(response.error);
-      console.log("Couldn't update DNS for " + server);
+    if (response.error || response.code == 500) {
+      if (response.error) {
+        console.log('Error updating DNS: ');
+        console.trace(response.error);
+      }
+      console.log('Couldn\'t update DNS for %s', server);
+    } else {
+      console.log('Successfully updated DNS for %s', server);
     }
   });
 }
 
-Status.updateCloudflare = function(callback) {
+Status.updateCloudflare = function (callback) {
   var toBeAdded = []
   for (var i in callback) {
     toBeAdded.push(callback[i]['ns']);
   }
   cloudflare.listDomainRecords('bukget.org', function (err, domains) {
-  if (err) throw err;
+    if (err) throw err;
     for (var i in domains) {
       var item = domains[i];
       if (item['type'] == 'NS') {
@@ -227,71 +216,74 @@ Status.updateCloudflare = function(callback) {
           }
         }
         if (!exists) {
-          cloudflare.deleteDomainRecord('bukget.org', item['rec_id'], function(err, success) {
-            console.log("Deleted record");
+          console.log('Delecting record for %s', item['content']);
+          cloudflare.deleteDomainRecord('bukget.org', item['rec_id'], function (err, success) {
+            console.log('Deleted record');
           })
         } else {
           var index = toBeAdded.indexOf(item['content']);
-        if (index !== -1) {
+          if (index !== -1) {
             toBeAdded.splice(index, 1);
-        }
+          }
         }
       }
     }
     for (var record in toBeAdded) {
+      console.log('Adding record for %s', toBeAdded[record]);
       cloudflare.addDomainRecord('bukget.org', { 'type': 'NS', 'name': 'api', 'content': toBeAdded[record], 'ttl': 300 }, function (err, success) {
-        console.log("Added record!");
+        console.log('Added record!');
       });
     }
   });
 }
 
 Status.checkDnsConsistency = function () {
-    Status.dnsGetServers(function (callback) {
-      Status.updateCloudflare(callback);
-      for (var server in Status.servers) {
-        (function request (server) {  
-          return Status.needsUpdate(server, function (status, error) {
-            if(error) {
-                console.log('Couldn\'t get current serial for ' + server);
-            }
+  if (currentlyChecking) {
+    return;
+  }
+  Status.dnsGetServers(function (callback) {
+    Status.updateCloudflare(callback);
+    for (var server in config.servers) {
+      (function request (server) {  
+        return Status.needsUpdate(server, function (status, error) {
+          if (error) {
+            console.log('Couldn\'t get current serial for %s', server);
+          }
 
-            if (status) {
-              Status.dnsRefreshServer(server, callback);
-            }
-          })
-        })(server); 
-      }
-    });
+          if (status) {
+            Status.dnsRefreshServer(server, callback);
+          }
+        })
+      })(server); 
+    }
+  });
 }
 
 Status.needsUpdate = function (server, callback) {
   unirest.get('http://' + server + '.ns.bukget.org/serial').end(function (response) {
-      if (response.error) {
-        return callback(false, 'Couldn\'t get serial');
-      }
+    if (response.error) {
+      return callback(false, 'Couldn\'t get serial');
+    }
 
-      if (response.body['serial'] != (lastSerial + "" + ("0" + serialRevision).slice(-2))) {
-        return callback(true);
-      }
+    if (response.body['serial'] != (lastSerial + '' + ('0' + serialRevision).slice(-2))) {
+      return callback(true);
+    }
 
-      return callback(false);
+    return callback(false);
   });
 }
+
+Status.setupChecks();
 
 Status.updateSerial();
 
 Status.check();
 
-setInterval(function() {
-  Status.check();
-}, 1000 * 60);
-
-setInterval(function() {
+setInterval(function () {
   Status.checkDnsConsistency();
-}, 1000 * 60 * 60);
+}, 1000 * 60 * 30);
 
-setInterval(function() {
+setInterval(function () {
   unirest.get('http://monitor.bukget.org').end(function (response) {});
 }, 1000 * 60 * 20);
 
@@ -310,7 +302,7 @@ app.get('/', function (req, res, next) {
 
 app.get('/currentDNS', function (req, res, next) {
   Status.dnsGetServers(function (callback) {
-    res.send({ 'serial': (lastSerial + "" + ("0" + serialRevision).slice(-2)), 'servers': callback })
+    res.send({ 'serial': (lastSerial + '' + ('0' + serialRevision).slice(-2)), 'servers': callback })
   });
 })
 
