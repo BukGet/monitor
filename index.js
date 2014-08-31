@@ -53,12 +53,8 @@ Status.check = function () {
   var currentCheckResults = [];
   async.eachSeries(checks, function (check, callback) {
     Status.call(check.host, check.path, function (status, error) {
-      if (check.server == 'ny') {
-        status = false;
-      }
       currentCheckResults.push({ 'server': check.server, 'section': check.section, 'version': check.version, 'status': (error == 'ETIMEDOUT' ? 'warning' : (status ? 'ok' : 'down')) });
       callback();
-
     });
   }, function (err) {
     if (err) {
