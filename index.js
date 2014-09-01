@@ -235,6 +235,9 @@ Status.updateCloudflare = function (callback) {
 
 Status.checkDnsConsistency = function () {
   if (currentlyChecking) {
+    setTimeout(function () {
+      Status.checkDnsConsistency();
+    }, 1000 * 20);
     return;
   }
   Status.dnsGetServers(function (callback) {
