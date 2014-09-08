@@ -2,11 +2,9 @@ language: node_js
 node_js:
 - '0.10'
 deploy:
-  provider: openshift
-  user: staff@bukget.org
-  password:
-    secure: gTYVAgzRQ/vNVQc/JUQsMV8C1a7vYv3yBMu9lq+52anlFR0bFrqE6gmzjt8Wx16RGj0lbQ9rtKUCjNfNT1BLXrythNTfZfLEmh/FyNKhp1aryldjqbCqAPMPKd/G9pvoaGHI6m6Uitys1ffEYufPWnRfd1nSUZNbUfFSP05EEYk=
-  app: monitor
-  domain: bukget
+  provider: heroku
+  api_key:
+    secure: pchPtk/FYZoGWcYjbK5QS2KH6HVKcTc9UWgtxS8xEx9ieq1eNh7/rA8eYD9AWc1zBXOfbETTWYLBarViWeWozw3KNJsuac/9pkGMiXK22nvNu8R5rQwyPnymNdjnUdLQ/77AwET18FWDxtjOUF9fwjCR1NSfaPXzg3dX9JETq6E=
+  app: bukget-monitor
   on:
     repo: BukGet/monitor
