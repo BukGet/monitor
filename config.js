@@ -3,7 +3,7 @@ module.exports = exports = {
     'ca' : { 'ip': '192.155.97.86', 'region': 'us', 'down': false },
     'ny' : { 'ip': '192.227.140.113', 'region': 'us', 'down': false },
     'de' : { 'ip': '5.62.103.8', 'region': 'europe', 'down': false },
-    'fr' : { 'ip': '176.31.222.122', 'region': 'europe', 'down': false }
+    'fr' : { 'ip': '5.39.15.193', 'region': 'europe', 'down': false }
   },
   versions: {
     'v3': {
