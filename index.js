@@ -212,7 +212,7 @@ Status.updateCloudflare = function (callback) {
           }
         }
         if (!exists) {
-          console.log('Delecting record for %s', item['content']);
+          console.log('Deleting record for %s', item['content']);
           cloudflare.deleteDomainRecord('bukget.org', item['rec_id'], function (err, success) {
             console.log('Deleted record');
           })
