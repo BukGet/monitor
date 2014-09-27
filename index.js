@@ -59,7 +59,7 @@ Status.check = function () {
   }, function (err) {
     if (err) {
       console.log('Error when checking status: ');
-      console.trace(err);
+      return console.trace(err);
     } else {
       console.log('Checks successfully executed');
     }
@@ -200,7 +200,10 @@ Status.updateCloudflare = function (callback) {
     toBeAdded.push(callback[i]['ns']);
   }
   cloudflare.listDomainRecords('bukget.org', function (err, domains) {
-    if (err) throw err;
+    if (err) { 
+      console.log('Failed listing domain records for cloudflare!');
+      return console.log(err);
+    }
     for (var i in domains) {
       var item = domains[i];
       if (item['type'] == 'NS') {
@@ -214,6 +217,9 @@ Status.updateCloudflare = function (callback) {
         if (!exists) {
           console.log('Deleting record for %s', item['content']);
           cloudflare.deleteDomainRecord('bukget.org', item['rec_id'], function (err, success) {
+            if (err) {
+              return console.log('Failed deleting record!');
+            }
             console.log('Deleted record');
           })
         } else {
@@ -227,6 +233,9 @@ Status.updateCloudflare = function (callback) {
     for (var record in toBeAdded) {
       console.log('Adding record for %s', toBeAdded[record]);
       cloudflare.addDomainRecord('bukget.org', { 'type': 'NS', 'name': 'api', 'content': toBeAdded[record], 'ttl': 300 }, function (err, success) {
+        if (err) {
+          return console.log('Failed adding record!');
+        }
         console.log('Added record!');
       });
     }
@@ -246,7 +255,7 @@ Status.checkDnsConsistency = function () {
       (function request (server) {  
         return Status.needsUpdate(server, function (status, error) {
           if (error) {
-            console.log('Couldn\'t get current serial for %s', server);
+            return console.log('Couldn\'t get current serial for %s', server);
           }
 
           if (status) {
