@@ -81,7 +81,7 @@ Status.check = function () {
       downCount = 0
     }
 
-    if (downCount > 2) {
+    if (downCount > 4) {
       the_status = 'down'
     }
 
