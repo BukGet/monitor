@@ -6,11 +6,11 @@ var smtpTransport = require('nodemailer-smtp-transport')
 var async = require('async')
 var config = require('./config')
 var transporter = nodemailer.createTransport(smtpTransport({
-  host: 'smtp.mandrillapp.com',
+  host: 'smtp.gmail.com',
   port: 587,
   auth: {
-    user: process.env.MANDRILL_USER,
-    pass: process.env.MANDRILL_PASS
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
   }
 }))
 
